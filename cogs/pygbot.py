@@ -94,11 +94,12 @@ class Chatbot:
         return message_content
 
     async def generate_response(self, message, message_content) -> None:
+        self.bot.logger.info(f"Received message from {message.author.display_name}: {message_content}")
         channel_id = str(message.channel.id)
         name = message.author.display_name
         memory = await self.get_memory_for_channel(channel_id)
         stop_sequence = await self.get_stop_sequence_for_channel(channel_id, name)
-        print(f"stop sequences: {stop_sequence}")
+        self.bot.logger.info(f"Stop sequences: {stop_sequence}")
         formatted_message = f"{name}: {message_content}"
 
         conversation = ConversationChain(
@@ -113,6 +114,7 @@ class Chatbot:
         response_text = conversation(input_dict)
 
         response = await self.detect_and_replace(response_text["response"])
+        self.bot.logger.info(f"Response generated: {response}")
 
         return response
 
@@ -121,7 +123,7 @@ class Chatbot:
 
         formatted_message = f"{name}: {message_content}"
 
-        print(f"adding message to memory: {formatted_message}")
+        self.bot.logger.info(f"Adding message to memory: {formatted_message}")
         memory.add_input_only(formatted_message)
         return None
 

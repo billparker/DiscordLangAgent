@@ -54,11 +54,11 @@ class LoggingFormatter(logging.Formatter):
     bold = "\x1b[1m"
 
     COLORS = {
-        logging.DEBUG: gray + self.bold,
-        logging.INFO: blue + self.bold,
-        logging.WARNING: yellow + self.bold,
+        logging.DEBUG: gray + bold,
+        logging.INFO: blue + bold,
+        logging.WARNING: yellow + bold,
         logging.ERROR: red,
-        logging.CRITICAL: red + self.bold,
+        logging.CRITICAL: red + bold,
     }
 
     def format(self, record):
@@ -164,32 +164,20 @@ async def on_command_error(context: Context, error) -> None:
             color=0xE02B2B,
         )
         await context.send(embed=embed)
-    elif isinstance(error, exceptions.UserBlacklisted):
+    elif isinstance(error, commands.CommandInvokeError):
         embed = discord.Embed(
-            description="You are blacklisted from using the bot!", color=0xE02B2B
+            description="An error occurred while executing the command.",
+            color=0xE02B2B
         )
         await context.send(embed=embed)
-        if context.guild:
-            bot.logger.warning(
-                f"{context.author} (ID: {context.author.id}) tried to execute a command in the guild {context.guild.name} (ID: {context.guild.id}), but the user is blacklisted from using the bot."
-            )
-        else:
-            bot.logger.warning(
-                f"{context.author} (ID: {context.author.id}) tried to execute a command in the bot's DMs, but the user is blacklisted from using the bot."
-            )
-    elif isinstance(error, exceptions.UserNotOwner):
+        bot.logger.error(f"Error in command {context.command}: {str(error)}")
+        traceback.print_exception(type(error), error, error.__traceback__, file=sys.stderr)
+    elif isinstance(error, commands.CheckFailure):
         embed = discord.Embed(
-            description="You are not the owner of the bot!", color=0xE02B2B
+            description="You do not have permission to use this command.",
+            color=0xE02B2B
         )
         await context.send(embed=embed)
-        if context.guild:
-            bot.logger.warning(
-                f"{context.author} (ID: {context.author.id}) tried to execute an owner only command in the guild {context.guild.name} (ID: {context.guild.id}), but the user is not an owner of the bot."
-            )
-        else:
-            bot.logger.warning(
-                f"{context.author} (ID: {context.author.id}) tried to execute an owner only command in the bot's DMs, but the user is not an owner of the bot."
-            )
     elif isinstance(error, commands.MissingPermissions):
         embed = discord.Embed(
             description="You are missing the permission(s) `"
