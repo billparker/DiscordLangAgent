@@ -132,6 +132,22 @@ async def on_ready():
                 "\n\n\n\nERROR: Unable to retrieve channel from .env \nPlease make sure you're using a valid channel ID, not a server ID."
             )
 
+@bot.event
+async def on_message(message):
+    # Ignore messages from the bot itself
+    if message.author == bot.user:
+        return
+
+    # Check if the bot was mentioned in the message or if it's a direct message
+    if bot.user.mentioned_in(message) or isinstance(message.channel, discord.DMChannel):
+        bot.logger.info(f"Received message from {message.author.display_name}: {message.content}")
+        
+        if isinstance(message.channel, discord.DMChannel):
+            response = await bot.get_cog("chatbot").chatbot.generate_response(message, message.content)
+            await message.channel.send(response)
+        else:
+            await bot.process_commands(message)
+
 @tasks.loop(minutes=6.0)
 async def status_task() -> None:
     statuses = [
