@@ -13,9 +13,7 @@ from discord.ext.commands import Bot, Context
 from dotenv import load_dotenv
 import aiosqlite
 from helpers import db_manager
-
-# assuming exceptions is a custom module, otherwise remove this
-import exceptions
+from langchain_community.llms import Ollama
 
 if not os.path.isfile(f"{os.path.realpath(os.path.dirname(__file__))}/config.json"):
     sys.exit("'config.json' not found! Please add it and try again.")
@@ -32,28 +30,8 @@ bot = Bot(command_prefix="/", intents=intents, help_command=None)
 
 # Get environment variables
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
-#OOBAENDPOINT = os.getenv("OOBAENDPOINT")
-#KOBOLDENDPOINT = os.getenv("KOBOLDENDPOINT")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
 OWNERS = os.getenv("OWNERS")
-#OPENAI = os.getenv("OPENAI")
-
-intents = discord.Intents.all()
-bot = Bot(command_prefix="/", intents=intents, help_command=None)
-# Check KOBOLDENDPOINT, OOBAENDPOINT, and OPENAI variables to see which is in use
-# if KOBOLDENDPOINT:
-#     ENDPOINT = KOBOLDENDPOINT
-#     bot.llm = "kobold"
-# elif OOBAENDPOINT:
-#     ENDPOINT = OOBAENDPOINT
-#     bot.llm = "ooba"
-# elif OPENAI:
-#     ENDPOINT = OPENAI
-#     bot.llm = "openai"
-# else:
-#     print("One or more required environment variables are missing.")
-#     print("Make sure to set KOBOLDENDPOINT, OOBAENDPOINT, or OPENAI in the .env file.")
-#     sys.exit(1)
 
 bot.endpoint = os.getenv("OLLAMAENDPOINT")
 if len(bot.endpoint.split("/api")) > 0:
@@ -62,7 +40,6 @@ bot.chatlog_dir = "chatlog_dir"
 bot.endpoint_connected = False
 bot.channel_list = [int(x) for x in CHANNEL_ID.split(",")]
 bot.owners = [int(x) for x in OWNERS.split(",")]
-
 
 class LoggingFormatter(logging.Formatter):
     # Colors
@@ -77,11 +54,11 @@ class LoggingFormatter(logging.Formatter):
     bold = "\x1b[1m"
 
     COLORS = {
-        logging.DEBUG: gray + bold,
-        logging.INFO: blue + bold,
-        logging.WARNING: yellow + bold,
+        logging.DEBUG: gray + self.bold,
+        logging.INFO: blue + self.bold,
+        logging.WARNING: yellow + self.bold,
         logging.ERROR: red,
-        logging.CRITICAL: red + bold,
+        logging.CRITICAL: red + self.bold,
     }
 
     def format(self, record):
@@ -93,7 +70,6 @@ class LoggingFormatter(logging.Formatter):
         format = format.replace("(green)", self.green + self.bold)
         formatter = logging.Formatter(format, "%Y-%m-%d %H:%M:%S", style="{")
         return formatter.format(record)
-
 
 logger = logging.getLogger("discord_bot")
 logger.setLevel(logging.INFO)
@@ -113,6 +89,8 @@ logger.addHandler(console_handler)
 logger.addHandler(file_handler)
 bot.logger = logger
 
+# Set the llm attribute before loading extensions
+bot.llm = Ollama(model="llama3")
 
 async def init_db():
     async with aiosqlite.connect(
@@ -124,11 +102,8 @@ async def init_db():
             await db.executescript(file.read())
         await db.commit()
 
-
 bot.config = config
 
-
-# on ready event that will update the character name and picture if you chose yes
 @bot.event
 async def on_ready():
     await db_manager.setup_db()
@@ -145,11 +120,8 @@ async def on_ready():
     bot.logger.info(f"{bot.user.name} has connected to:")
     for items in bot.channel_list:
         try:
-            # get the channel object from the channel ID
             channel = bot.get_channel(int(items))
-            # get the guild object from the channel object
             guild = channel.guild
-            # check that the channel is a text channel
             if isinstance(channel, discord.TextChannel):
                 channel_name = channel.name
                 bot.logger.info(f"{guild.name} \ {channel_name}")
@@ -160,25 +132,15 @@ async def on_ready():
                 "\n\n\n\nERROR: Unable to retrieve channel from .env \nPlease make sure you're using a valid channel ID, not a server ID."
             )
 
-
 @tasks.loop(minutes=6.0)
 async def status_task() -> None:
-    """
-    Setup the game status task of the bot.
-    """
     statuses = [
         "with Langchain🦜🔗",
     ]
     await bot.change_presence(activity=discord.Game(random.choice(statuses)))
 
-
 @bot.event
 async def on_command_completion(context: Context) -> None:
-    """
-    The code in this event is executed every time a normal command has been *successfully* executed.
-
-    :param context: The context of the command that has been executed.
-    """
     full_command_name = context.command.qualified_name
     split = full_command_name.split(" ")
     executed_command = str(split[0])
@@ -191,17 +153,8 @@ async def on_command_completion(context: Context) -> None:
             f"Executed {executed_command} command by {context.author} (ID: {context.author.id}) in DMs"
         )
 
-
 @bot.event
 async def on_command_error(context: Context, error) -> None:
-    """
-    The code in this event is executed every time a
-    normal valid command catches an error.
-
-    :param context: The context of the normal command
-    that failed executing.
-    :param error: The error that has been faced.
-    """
     if isinstance(error, commands.CommandOnCooldown):
         minutes, seconds = divmod(error.retry_after, 60)
         hours, minutes = divmod(minutes, 60)
@@ -212,10 +165,6 @@ async def on_command_error(context: Context, error) -> None:
         )
         await context.send(embed=embed)
     elif isinstance(error, exceptions.UserBlacklisted):
-        """
-        The code here will only execute if the error is an instance of 'UserBlacklisted', which can occur when using
-        the @checks.not_blacklisted() check in your command, or you can raise the error by yourself.
-        """
         embed = discord.Embed(
             description="You are blacklisted from using the bot!", color=0xE02B2B
         )
@@ -229,13 +178,9 @@ async def on_command_error(context: Context, error) -> None:
                 f"{context.author} (ID: {context.author.id}) tried to execute a command in the bot's DMs, but the user is blacklisted from using the bot."
             )
     elif isinstance(error, exceptions.UserNotOwner):
-        """
-        Same as above, just for the @checks.is_owner() check.
-        """
         embed = discord.Embed(
             description="You are not the owner of the bot!", color=0xE02B2B
         )
-
         await context.send(embed=embed)
         if context.guild:
             bot.logger.warning(
@@ -271,8 +216,6 @@ async def on_command_error(context: Context, error) -> None:
     else:
         raise error
 
-
-# COG LOADER
 async def load_cogs() -> None:
     for file in os.listdir(f"{os.path.realpath(os.path.dirname(__file__))}/cogs"):
         if file.endswith(".py"):
@@ -280,13 +223,9 @@ async def load_cogs() -> None:
             try:
                 await bot.load_extension(f"cogs.{extension}")
             except Exception as e:
-                # log the error and continue with the next file
-                error_info = (
-                    f"Failed to load extension {extension}. {type(e).__name__}: {e}"
-                )
+                error_info = f"Failed to load extension {extension}. {type(e).__name__}: {e}"
                 print(error_info)
                 logging.error(f"Traceback: {traceback.format_exc()}")
-
 
 asyncio.run(load_cogs())
 asyncio.run(init_db())
