@@ -1,26 +1,22 @@
 import discord
+import os
 from discord import app_commands
 from discord.ext import commands
-
-import os
-from langchain.vectorstores import Chroma
-from langchain.embeddings import OpenAIEmbeddings
+from langchain_community.vectorstores import Chroma
+from langchain_community.embeddings import OllamaEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.llms import OpenAI
+from langchain_community.llms import Ollama
 from langchain.chains import RetrievalQA
-from langchain.document_loaders import WikipediaLoader
+from langchain_community.document_loaders import WikipediaLoader
 from langchain.tools import BaseTool, StructuredTool, Tool
 from langchain.agents import initialize_agent
-
-from langchain.utilities import WikipediaAPIWrapper
-from langchain.tools import DuckDuckGoSearchRun
-from langchain.utilities import PythonREPL
+from langchain_community.utilities import WikipediaAPIWrapper
+from langchain_community.tools import DuckDuckGoSearchRun
+from langchain_experimental.utilities import PythonREPL
 from dotenv import load_dotenv
 
 # Load .env file
 load_dotenv()
-
-OPENAI = os.getenv('OPENAI')
 
 def embedder(msg):
     embed = discord.Embed(
@@ -29,40 +25,31 @@ def embedder(msg):
         )
     return embed
 
-
-
 class AgentCommands(commands.Cog, name="agent_commands"):
     def __init__(self, bot):
         self.bot = bot
         self.llm = ""
-        os.environ["OPENAI_API_KEY"] = self.bot.openai
         # Tools
         self.wikipedia = WikipediaAPIWrapper() # Wikipedia tool
         self.search = DuckDuckGoSearchRun() # DuckDuckGo tool
         self.python_repl = PythonREPL()  # Python REPL tool
         
-
         self.wikipedia_tool = Tool(
             name='wikipedia',
             func= self.wikipedia.run,
             description="Useful for when you need to look up a topic, country or person on wikipedia"
         )
-
         self.duckduckgo_tool = Tool(
             name='DuckDuckGo Search',
             func= self.search.run,
             description="Useful for when you need to do a search on the internet to find information that another tool can't find. be specific with your input."
         )
 
-
     @app_commands.command(name="searchweb", description="Query Web")
     async def search_web(self, interaction: discord.Interaction, prompt: str):
-
-        self.llm = OpenAI(temperature=0)
-
+        self.llm = Ollama(model="llama3")
         name = interaction.user.display_name
         channel_id = interaction.channel.id
-
         await interaction.response.send_message(embed=discord.Embed(
         title=f"{interaction.user.display_name} used Search Web 🌐",
         description=f"Prompt: {prompt}",
@@ -79,7 +66,7 @@ class AgentCommands(commands.Cog, name="agent_commands"):
 
         tools.append(self.duckduckgo_tool)
         tools.append(self.wikipedia_tool)
-        llm = OpenAI(temperature=0)
+        llm = Ollama(model="llama3")
 
         zero_shot_agent = initialize_agent(
             agent="zero-shot-react-description",
@@ -94,10 +81,7 @@ class AgentCommands(commands.Cog, name="agent_commands"):
 
         response = await self.bot.get_cog("chatbot").agent_command(name, channel_id, prompt, observation)
 
-
         await interaction.channel.send(response)
-
-
 
     @app_commands.command(name="agent_test", description="Test command")
     async def agent_test(self, interaction: discord.Interaction):
@@ -106,22 +90,10 @@ class AgentCommands(commands.Cog, name="agent_commands"):
     @commands.Cog.listener()
     async def on_ready(self):
         self.bot.logger.info("Agent Commands cog loaded.")
-
-
-    
-
-
-
-
-
-
-
-
-        
+  
     # create a command for the wiipedia chroma code is in the wikichroma copy.ipynb that will use the agent_command from pygbot
     @app_commands.command(name="wikipedia", description="Wikipedia Search")
     async def wikipedia_search(self, interaction: discord.Interaction, topic: str, wikipedia: str, query: str):
-        
         loader = WikipediaLoader(query=wikipedia, load_max_docs=100)
         documents = loader.load()
         #splitting the text into
@@ -134,13 +106,12 @@ class AgentCommands(commands.Cog, name="agent_commands"):
         # Supplying a persist_directory will store the embeddings on disk
         persist_directory = 'db'
 
-        ## here we are using OpenAI embeddings but in future we will swap out to local embeddings
-        embedding = OpenAIEmbeddings()
-
+        ## here we are using OllamaEmbeddings
+        oembed = OllamaEmbeddings(base_url="http://localhost:11434", model="nomic-embed-text")
+        embedding = oembed()
         vectordb = Chroma.from_documents(documents=texts,
                                         embedding=embedding,
                                         persist_directory=persist_directory)
-
         # persiste the db to disk
         vectordb.persist()
         vectordb = None
@@ -159,11 +130,10 @@ class AgentCommands(commands.Cog, name="agent_commands"):
         retriever.search_kwargs
 
         # create the chain to answer questions
-        qa_chain = RetrievalQA.from_chain_type(llm=OpenAI(),
+        qa_chain = RetrievalQA.from_chain_type(llm=Ollama(model="llama3"),
                                         chain_type="stuff",
                                         retriever=retriever,
-                                        return_source_documents=True)
-                                        
+                                        return_source_documents=True)                              
         await interaction.response.send_message(embed=discord.Embed(
         title=f"{interaction.user.display_name} used Wikipedia Search 🔍",
         description=f"Prompt: {topic}",
@@ -172,18 +142,6 @@ class AgentCommands(commands.Cog, name="agent_commands"):
         # create a conversation thread in discord that will allow the user to ask questions about the topic
         self.llm_response = qa_chain(query)
         await interaction.channel.send(self.llm_response)
-
-
-
-
-
-
-
-
-
-
-
-
 
 async def setup(bot):
     await bot.add_cog(AgentCommands(bot))

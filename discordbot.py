@@ -32,31 +32,30 @@ bot = Bot(command_prefix="/", intents=intents, help_command=None)
 
 # Get environment variables
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
-OOBAENDPOINT = os.getenv("OOBAENDPOINT")
-KOBOLDENDPOINT = os.getenv("KOBOLDENDPOINT")
+#OOBAENDPOINT = os.getenv("OOBAENDPOINT")
+#KOBOLDENDPOINT = os.getenv("KOBOLDENDPOINT")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
 OWNERS = os.getenv("OWNERS")
-OPENAI = os.getenv("OPENAI")
+#OPENAI = os.getenv("OPENAI")
 
 intents = discord.Intents.all()
 bot = Bot(command_prefix="/", intents=intents, help_command=None)
 # Check KOBOLDENDPOINT, OOBAENDPOINT, and OPENAI variables to see which is in use
-if KOBOLDENDPOINT:
-    ENDPOINT = KOBOLDENDPOINT
-    bot.llm = "kobold"
-elif OOBAENDPOINT:
-    ENDPOINT = OOBAENDPOINT
-    bot.llm = "ooba"
-elif OPENAI:
-    ENDPOINT = OPENAI
-    bot.llm = "openai"
-else:
-    print("One or more required environment variables are missing.")
-    print("Make sure to set KOBOLDENDPOINT, OOBAENDPOINT, or OPENAI in the .env file.")
-    sys.exit(1)
+# if KOBOLDENDPOINT:
+#     ENDPOINT = KOBOLDENDPOINT
+#     bot.llm = "kobold"
+# elif OOBAENDPOINT:
+#     ENDPOINT = OOBAENDPOINT
+#     bot.llm = "ooba"
+# elif OPENAI:
+#     ENDPOINT = OPENAI
+#     bot.llm = "openai"
+# else:
+#     print("One or more required environment variables are missing.")
+#     print("Make sure to set KOBOLDENDPOINT, OOBAENDPOINT, or OPENAI in the .env file.")
+#     sys.exit(1)
 
-bot.endpoint = ENDPOINT
-bot.openai = OPENAI
+bot.endpoint = os.getenv("OLLAMAENDPOINT")
 if len(bot.endpoint.split("/api")) > 0:
     bot.endpoint = bot.endpoint.split("/api")[0]
 bot.chatlog_dir = "chatlog_dir"
